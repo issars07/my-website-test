@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hypothesis Testing Lab - Precision View</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --primary: #3b82f6;
+            --accent: #ef4444;
+            --secondary: #64748b;
+            --success: #10b981;
+            --text: #0f172a;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header-controls {
+            background: var(--card);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-end;
+            justify-content: center;
+            margin-bottom: 24px;
+            max-width: 1000px;
+            width: 100%;
+            border: 1px solid var(--border);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-weight: 500;
+            outline: none;
+            background: white;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .btn-test { background: var(--primary); color: white; }
+        .btn-test:hover { background: #2563eb; }
+        .btn-reset { background: white; color: var(--secondary); border: 1px solid var(--border); }
+        .btn-reset:hover { background: #f1f5f9; }
+
+        .canvas-area {
+            background: var(--card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            max-width: 1000px;
+            width: 100%;
+            border: 1px solid var(--border);
+            box-sizing: border-box;
+        }
+
+        canvas { 
+            display: block; 
+            width: 100%; 
+            height: 350px; 
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .box { width: 12px; height: 12px; border-radius: 2px; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            margin-top: 25px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .stat-item { background: white; padding: 16px; text-align: center; }
+        .stat-val { font-weight: 800; font-size: 1.25rem; display: block; margin-top: 4px; }
+        .stat-lbl { font-size: 0.65rem; color: var(--secondary); text-transform: uppercase; font-weight: 700; }
+        
+        .p-sig { color: var(--accent); }
+        .p-insig { color: var(--success); }
+    </style>
+</head>
+<body>
+
+<div class="header-controls">
+    <div class="control-group">
+        <label class="control-label">Pop. Mean </label>
+        <input type="number" id="truePopMean" value="500" onchange="resetAll()">
+    </div>
+    <div class="control-group">
+        <label class="control-label">H₀ Mean</label>
+        <input type="number" id="nullMean" value="500" onchange="resetAll()">
+    </div>
+    <div class="control-group">
+        <label class="control-label">Sample Size </label>
+        <input type="number" id="nSize" value="30" min="2" onchange="resetAll()">
+    </div>
+    <div class="control-group">
+        <label class="control-label">Alpha </label>
+        <select id="alpha" onchange="resetAll()">
+            <option value="0.10">0.10</option>
+            <option value="0.05" selected>0.05</option>
+            <option value="0.01">0.01</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label class="control-label">Test Type</label>
+        <select id="tailType" onchange="resetAll()">
+            <option value="two">Two-Tailed</option>
+            <option value="right">Right-Tailed</option>
+            <option value="left">Left-Tailed</option>
+        </select>
+    </div>
+    <button class="btn btn-test" onclick="runTest()">Collect Sample</button>
+    <button class="btn btn-reset" onclick="resetAll()">Reset</button>
+</div>
+
+<div class="canvas-area">
+    <div class="legend">
+        <div class="legend-item"><div class="box" style="background: #fee2e2; border: 1px solid #ef4444;"></div> Rejection Zone</div>
+        <div class="legend-item"><div class="box" style="background: rgba(59, 130, 246, 0.2);"></div> P-Value Area</div>
+        <div class="legend-item"><div class="box" style="background: var(--primary);"></div> Sample Mean</div>
+    </div>
+
+    <canvas id="samplingCanvas" width="1000" height="350"></canvas>
+
+    <div class="stats">
+        <div class="stat-item"><span class="stat-lbl">Sample Mean (x̄)</span><span id="statXBar" class="stat-val">-</span></div>
+        <div class="stat-item"><span class="stat-lbl">Z-Statistic</span><span id="statZ" class="stat-val">-</span></div>
+        <div class="stat-item"><span class="stat-lbl">P-Value</span><span id="statP" class="stat-val">-</span></div>
+        <div class="stat-item"><span class="stat-lbl">Result</span><span id="statDecision" class="stat-val">-</span></div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('samplingCanvas');
+const ctx = canvas.getContext('2d');
+const POP_SD = 100; 
+let currentXBar = null;
+let X_MIN, X_MAX;
+
+// Scaling functions
+function scaleX(val) { return ((val - X_MIN) / (X_MAX - X_MIN)) * canvas.width; }
+function scaleY(val, maxVal) { 
+    const padding = 60;
+    const graphHeight = (canvas.height - 100) * 0.6; // Keep curve compressed for focus
+    return canvas.height - padding - (val / maxVal) * graphHeight; 
+}
+
+function normalPDF(x, mean, sd) {
+    return (1 / (sd * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - mean) / sd, 2));
+}
+
+function normalCDF(x) {
+    const t = 1 / (1 + 0.2316419 * Math.abs(x));
+    const d = 0.3989423 * Math.exp(-x * x / 2);
+    const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.821256 + t * 1.330274))));
+    return x > 0 ? 1 - p : p;
+}
+
+function getZCrit(alpha, tail) {
+    const table = { "0.10_two": 1.645, "0.10_one": 1.282, "0.05_two": 1.96, "0.05_one": 1.645, "0.01_two": 2.576, "0.01_one": 2.326 };
+    return table[`${alpha}_${tail === 'two' ? 'two' : 'one'}`];
+}
+
+function resetAll() {
+    currentXBar = null;
+    draw();
+}
+
+function runTest() {
+    const trueMean = parseFloat(document.getElementById('truePopMean').value);
+    const n = parseInt(document.getElementById('nSize').value);
+    const se = POP_SD / Math.sqrt(n);
+    
+    let u=0, v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+    currentXBar = (Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) * se) + trueMean;
+    draw();
+}
+
+/**
+ * Enhanced Fill Function: Ensures straight vertical lines at boundaries
+ */
+function fillArea(start, end, mean, se, maxVal, color, borderColor = null) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    
+    const xStart = scaleX(start);
+    const xEnd = scaleX(end);
+    const yBaseline = scaleY(0, maxVal);
+    
+    // Start at bottom baseline
+    ctx.moveTo(xStart, yBaseline);
+    
+    // Move up to the curve start point (straight vertical edge)
+    ctx.lineTo(xStart, scaleY(normalPDF(start, mean, se), maxVal));
+    
+    // Draw the curve segment
+    const res = 100;
+    const step = (end - start) / res;
+    for(let i = 1; i <= res; i++) {
+        const xVal = start + (i * step);
+        ctx.lineTo(scaleX(xVal), scaleY(normalPDF(xVal, mean, se), maxVal));
+    }
+    
+    // Drop down to bottom baseline (straight vertical edge)
+    ctx.lineTo(xEnd, yBaseline);
+    ctx.closePath();
+    ctx.fill();
+
+    if (borderColor) {
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(xStart, yBaseline);
+        ctx.lineTo(xStart, scaleY(normalPDF(start, mean, se), maxVal));
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(xEnd, yBaseline);
+        ctx.lineTo(xEnd, scaleY(normalPDF(end, mean, se), maxVal));
+        ctx.stroke();
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const h0Mean = parseFloat(document.getElementById('nullMean').value);
+    const n = parseInt(document.getElementById('nSize').value);
+    const alpha = parseFloat(document.getElementById('alpha').value);
+    const tail = document.getElementById('tailType').value;
+    const se = POP_SD / Math.sqrt(n);
+
+    // Zoom Focus logic: ~8.4 Standard Errors wide
+    X_MIN = h0Mean - (4.2 * se);
+    X_MAX = h0Mean + (4.2 * se);
+
+    // Adjust if sample is out of standard bounds
+    if (currentXBar !== null) {
+        if (currentXBar < X_MIN) X_MIN = currentXBar - (0.5 * se);
+        if (currentXBar > X_MAX) X_MAX = currentXBar + (0.5 * se);
+    }
+
+    const maxPDFVal = normalPDF(h0Mean, h0Mean, se);
+
+    // 1. Draw X-Axis
+    ctx.beginPath(); 
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.moveTo(0, scaleY(0, maxPDFVal)); 
+    ctx.lineTo(canvas.width, scaleY(0, maxPDFVal)); 
+    ctx.stroke();
+
+    // Axis Ticks
+    ctx.fillStyle = "#94a3b8"; 
+    ctx.font = "500 11px Inter"; 
+    ctx.textAlign = "center";
+    const tickCount = 8;
+    for(let i=0; i<=tickCount; i++) {
+        let val = X_MIN + (i * (X_MAX - X_MIN) / tickCount);
+        ctx.fillText(val.toFixed(0), scaleX(val), scaleY(0, maxPDFVal) + 20);
+    }
+
+    // 2. Critical Values & Rejection Regions
+    const zCrit = getZCrit(alpha, tail);
+    const critLow = h0Mean - zCrit * se;
+    const critHigh = h0Mean + zCrit * se;
+    const rejColor = "#fee2e2";
+    const rejBorder = "#ef4444";
+
+    if(tail === 'two' || tail === 'left') {
+        fillArea(X_MIN, critLow, h0Mean, se, maxPDFVal, rejColor, rejBorder);
+    }
+    if(tail === 'two' || tail === 'right') {
+        fillArea(critHigh, X_MAX, h0Mean, se, maxPDFVal, rejColor, rejBorder);
+    }
+
+    // 3. Sample Visualization
+    if(currentXBar !== null) {
+        const zStat = (currentXBar - h0Mean) / se;
+        let pValue;
+        const pColor = "rgba(59, 130, 246, 0.2)";
+
+        if(tail === 'right') {
+            pValue = 1 - normalCDF(zStat);
+            if(currentXBar < X_MAX) fillArea(Math.max(X_MIN, currentXBar), X_MAX, h0Mean, se, maxPDFVal, pColor);
+        } else if(tail === 'left') {
+            pValue = normalCDF(zStat);
+            if(currentXBar > X_MIN) fillArea(X_MIN, Math.min(X_MAX, currentXBar), h0Mean, se, maxPDFVal, pColor);
+        } else {
+            pValue = 2 * (1 - normalCDF(Math.abs(zStat)));
+            const high = h0Mean + Math.abs(currentXBar - h0Mean);
+            const low = h0Mean - Math.abs(currentXBar - h0Mean);
+            if(high < X_MAX) fillArea(high, X_MAX, h0Mean, se, maxPDFVal, pColor);
+            if(low > X_MIN) fillArea(X_MIN, low, h0Mean, se, maxPDFVal, pColor);
+        }
+
+        // Vertical Guide Line for Sample Mean
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+        ctx.beginPath();
+        ctx.moveTo(scaleX(currentXBar), 40);
+        ctx.lineTo(scaleX(currentXBar), scaleY(0, maxPDFVal));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Sample Mean Dot
+        ctx.fillStyle = "var(--primary)";
+        ctx.beginPath();
+        ctx.arc(scaleX(currentXBar), scaleY(normalPDF(currentXBar, h0Mean, se), maxPDFVal), 5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        document.getElementById('statXBar').innerText = currentXBar.toFixed(2);
+        document.getElementById('statZ').innerText = zStat.toFixed(3);
+        document.getElementById('statP').innerText = pValue.toFixed(4);
+        
+        const isRejected = pValue < alpha;
+        const decEl = document.getElementById('statDecision');
+        decEl.innerText = isRejected ? "Reject H₀" : "Fail to Reject";
+        decEl.className = `stat-val ${isRejected ? 'p-sig' : 'p-insig'}`;
+    }
+
+    // 4. Draw Main Bell Curve
+    ctx.beginPath();
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    const res = 200;
+    for(let i=0; i<=res; i++) {
+        const x = X_MIN + (i/res)*(X_MAX - X_MIN);
+        const y = normalPDF(x, h0Mean, se);
+        if(i === 0) ctx.moveTo(scaleX(x), scaleY(y, maxPDFVal));
+        else ctx.lineTo(scaleX(x), scaleY(y, maxPDFVal));
+    }
+    ctx.stroke();
+    
+    // Label H0 Center
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 12px Inter";
+    ctx.textAlign = "center";
+    ctx.fillText("H₀", scaleX(h0Mean), scaleY(maxPDFVal, maxPDFVal) - 15);
+}
+
+window.onload = draw;
+</script>
+</body>
+</html>
